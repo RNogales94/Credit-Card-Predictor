@@ -10,7 +10,7 @@ output: pdf_document
 ```{r}
 #Leer datos
 library("gdata")
-
+creditCardData <- read.csv("~/Desktop/UGR/4-CUARTO/Semestre 2/AprendizajeAutomatico/Credit-Card-Predictor/creditCardData.csv", header=TRUE, sep=";")
 ```
 
 
