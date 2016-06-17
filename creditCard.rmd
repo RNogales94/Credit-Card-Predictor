@@ -6,11 +6,77 @@ output: pdf_document
 ---
 
 #Predictor de pagos en tarjetas de crédito.
-
+En primer lugar vamos a pasar el archivo xls a csv para ello usamos directamente la herramienta de Excel para exportar el archivo a csv.  
+Despues ya podemos abrirlo con read.csv  
+Nota: Podríamos haber utilizado el paquete **gdata** para leer directamente desde Excel pero este metodo no es efectivo con datasets grandes porque la herramienta de lectura de gdata es *muy* lenta para archivos grandes.
 ```{r}
 #Leer datos
-library("gdata")
 creditCardData <- read.csv("~/Desktop/UGR/4-CUARTO/Semestre 2/AprendizajeAutomatico/Credit-Card-Predictor/creditCardData.csv", header=TRUE, sep=";")
 ```
+
+```{r}
+#Creamos las particiones de TRAIN y TEST
+library("caret")
+set.seed(2)
+train <- createDataPartition(creditCardData$default.payment.next.month, 
+                                                times = 1, p = 0.8, list = F)
+credit.train <- creditCardData[train,]
+credit.test <- creditCardData[-train,]
+```
+
+##Regresion Logistica
+```{r}
+#Generamos un modelo a partir del train con todas las variables
+credit.model <- glm(default.payment.next.month ~ . , data = credit.train)
+```
+
+```{r}
+prediction <- predict(credit.model, credit.test)
+pred.class <- (prediction > 0.5)*1
+t.glm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t.glm
+error.glm <- 1 - sum(diag(t))/sum(t)
+error.glm
+```
+
+##Regresion Lineal
+```{r}
+#Generamos un modelo a partir del train con todas las variables
+credit.model <- lm(default.payment.next.month ~ . , data = credit.train)
+```
+
+```{r}
+prediction <- predict(credit.model, credit.test)
+pred.class <- (prediction > 0.5)*1
+t.lm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t.lm
+error.lm <- 1 - sum(diag(t))/sum(t)
+error.lm
+```
+
+##Regresion Lineal
+```{r}
+#Generamos un modelo a partir del train con todas las variables
+credit.model <- lm(default.payment.next.month ~ . , data = credit.train)
+```
+
+```{r}
+prediction <- predict(credit.model, credit.test)
+pred.class <- (prediction > 0.5)*1
+t.lm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t.lm
+error.lm <- 1 - sum(diag(t))/sum(t)
+error.lm
+```
+
+#SVM
+```{r}
+library("ei1071")
+tune_cost.credit.svm <- tune(svm, default.payment.next.month ~ ., 
+                             data=credit.train, kernel="linear", 
+                             ranges=list(cost=c(0.001, 0.1, 100)),
+                             scale = FALSE)
+```
+
 
 
