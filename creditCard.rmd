@@ -35,10 +35,70 @@ prediction <- predict(credit.model, credit.test)
 pred.class <- (prediction > 0.5)*1
 t.glm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
 t.glm
-error.glm <- 1 - sum(diag(t))/sum(t)
+error.glm <- 1 - sum(diag(t.glm))/sum(t.glm)
 error.glm
 ```
 
+##Regresion Logistica rocplot
+```{r}
+library("ROCR")
+rocplot <- function(pred, truth, ...){
+    if(class(pred) == "factor"){
+        pred <- as.numeric(pred)
+        #Ahora tenemos un vector de 1's y 2's
+        #Lo pasamos a -1 y 1
+        pred <- 2*pred-3
+    }
+    predob <- prediction(pred, truth)
+    perf <- performance(predob, "tpr", "fpr")
+    
+    plot(perf, ...)
+}
+```
+
+```{r}
+log.predict <- pred.class             #Solo es renombrar
+rocplot(log.predict, credit.test$default.payment.next.month, col="red", main=c("REGRESION LOGISTICA", "ROC CURVE"))
+```
+
+##Validacion cruzada Regresion Logistica 
+```{r}
+cv.error.rl <- function(k=5){
+    errores <- vector(length = k)
+    for(i in 1:k){
+        labels <- creditCardData$default.payment.next.month
+        train <- createDataPartition(labels, times = 1, p = 0.8, list = F)
+        
+        credit.train <- creditCardData[train,]
+        credit.test <- creditCardData[-train,]
+        
+        labels.train <- credit.train$default.payment.next.month
+        labels.test  <- credit.test$default.payment.next.month
+        
+        credit.model <- glm(default.payment.next.month ~ . , data = credit.train)
+        summary(credit.model)
+        prediction <- predict(credit.model, credit.test)
+        
+        
+    
+        pred.class <- (prediction > 0.5)*1
+        t.glm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+        
+        error <- 1 - sum(diag(t.glm))/sum(t.glm)
+        errores[i] <- error
+    }
+    
+    return(mean(errores))
+}
+```
+
+```{r}
+error_glm=cv.error.rl(k=5)
+error_glm
+```
+
+
+
 ##Regresion Lineal
 ```{r}
 #Generamos un modelo a partir del train con todas las variables
@@ -50,33 +110,239 @@ prediction <- predict(credit.model, credit.test)
 pred.class <- (prediction > 0.5)*1
 t.lm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
 t.lm
-error.lm <- 1 - sum(diag(t))/sum(t)
+error.lm <- 1 - sum(diag(t.lm))/sum(t.lm)
 error.lm
 ```
 
-##Regresion Lineal
+##Regresion Lineal rocplot
 ```{r}
-#Generamos un modelo a partir del train con todas las variables
-credit.model <- lm(default.payment.next.month ~ . , data = credit.train)
+lm.predict <- pred.class             #Solo es renombrar
+rocplot(lm.predict, credit.test$default.payment.next.month, col="red", main=c("REGRESION LINEAL", "ROC CURVE"))
+```
+
+##Validacion cruzada Regresion Lineal 
+```{r}
+cv.error.lm <- function(data, k=5){
+    errores <- vector(length = k)
+    for(i in 1:k){
+        labels <- creditCardData$default.payment.next.month
+        train <- createDataPartition(labels, times = 1, p = 0.8, list = F)
+        
+        credit.train <- creditCardData[train,]
+        credit.test <- creditCardData[-train,]
+        
+        labels.train <- credit.train$default.payment.next.month
+        labels.test  <- credit.test$default.payment.next.month
+        
+        credit.model <- lm(default.payment.next.month ~ . , data = credit.train)
+        summary(credit.model)
+        prediction <- predict(credit.model, credit.test)
+        
+
+        pred.class <- (prediction > 0.5)*1
+        t.lm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+        
+        error <- 1 - sum(diag(t.lm))/sum(t.lm)
+        errores[i] <- error
+    }
+    
+    return(mean(errores))
+}
 ```
 
 ```{r}
-prediction <- predict(credit.model, credit.test)
-pred.class <- (prediction > 0.5)*1
-t.lm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
-t.lm
-error.lm <- 1 - sum(diag(t))/sum(t)
-error.lm
+error_lm=cv.error.lm(k=5)
+error_lm
 ```
+
+
+
 
 #SVM
-```{r}
-library("ei1071")
+```{r eval=FALSE}
+library("e1071")
 tune_cost.credit.svm <- tune(svm, default.payment.next.month ~ ., 
                              data=credit.train, kernel="linear", 
                              ranges=list(cost=c(0.001, 0.1, 100)),
                              scale = FALSE)
 ```
+
+
+#regresion lineal con weight-decay
+
+```{r}
+library(glmnet)
+modelo_ridge_cv=cv.glmnet(as.matrix(credit.train),credit.train$default.payment.next.month,alpha=0)
+mejor_lambda=modelo_ridge_cv$lambda.min
+modelo=glmnet(as.matrix(credit.train),credit.train$default.payment.next.month,alpha=0)
+pesos=predict(modelo,type = "coefficients",s=mejor_lambda)
+pesos=pesos[1:nrow(pesos)]
+pesos
+prediction=predict(modelo,s=mejor_lambda,newx = as.matrix(credit.test))
+pred.class <- (prediction > 0.5)*1
+t_ridge<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t_ridge
+error.ridge<- 1 - sum(diag(t_ridge))/sum(t_ridge)
+error.ridge
+```
+
+```{r}
+rid.predict <- pred.class             #Solo es renombrar
+rocplot(rid.predict, credit.test$default.payment.next.month, col="red", main=c("REGRESION LINEAL RIDGE", "ROC CURVE"))
+```
+
+##Validacion cruzada Regresion Lineal con weight-decay (Ridge) 
+```{r}
+cv.error.rid <- function(data, k=5){
+    errores <- vector(length = k)
+    for(i in 1:k){
+        labels <- creditCardData$default.payment.next.month
+        train <- createDataPartition(labels, times = 1, p = 0.8, list = F)
+        
+        credit.train <- creditCardData[train,]
+        credit.test <- creditCardData[-train,]
+        
+        labels.train <- credit.train$default.payment.next.month
+        labels.test  <- credit.test$default.payment.next.month
+        
+        modelo_ridge_cv <- cv.glmnet(as.matrix(credit.train),
+                                     credit.train$default.payment.next.month, alpha=0)
+        mejor_lambda <- modelo_ridge_cv$lambda.min
+        modelo <- glmnet(as.matrix(credit.train),credit.train$default.payment.next.month,alpha=0)
+        prediction <- predict(modelo,s=mejor_lambda,newx = as.matrix(credit.test))
+        pred.class <- (prediction > 0.5)*1
+        
+
+        t.rid<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+        
+        error <- 1 - sum(diag(t.rid))/sum(t.rid)
+        errores[i] <- error
+    }
+    
+    return(mean(errores))
+}
+```
+
+```{r}
+error_rid = cv.error.rid(k=5)
+error_rid
+```
+
+
+
+#Random forest
+
+```{r}
+library("randomForest")
+library("gbm")
+library("ipred")
+model_rf <- randomForest(credit.train$default.payment.next.month ~.,data = credit.train, ntree=50)
+predicion <- predict(model_rf, newdata=credit.test)
+pred.class <- (prediction > 0.5)*1
+t_random.forest <- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t_random.forest
+error.random.forest<- 1 - sum(diag(t_random.forest))/sum(t_random.forest)
+error.random.forest
+```
+
+```{r}
+rid.predict <- pred.class             #Solo es renombrar
+rocplot(rid.predict, credit.test$default.payment.next.month, col="red", main=c("RANDOM FOREST", "ROC CURVE"))
+```
+
+##Validacion cruzada Regresion Lineal con weight-decay (Ridge) 
+```{r}
+cv.error.rf <- function(k=5, model){
+    errores <- vector(length = k)
+    for(i in 1:k){
+        labels <- creditCardData$default.payment.next.month
+        train <- createDataPartition(labels, times = 1, p = 0.8, list = F)
+        
+        credit.train <- creditCardData[train,]
+        credit.test <- creditCardData[-train,]
+        
+        labels.train <- credit.train$default.payment.next.month
+        labels.test  <- credit.test$default.payment.next.month
+
+        prediction <- predict(model,newdata = credit.test)
+        pred.class <- (prediction > 0.5)*1
+
+        t<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+        
+        error <- 1 - sum(diag(t))/sum(t)
+        errores[i] <- error
+    }
+    
+    return(mean(errores))
+}
+```
+
+```{r}
+error_rf = cv.error.rf(k=5, model= model_rf)
+error_rf
+```
+
+
+#KNN
+```{r}
+library("ipred")
+library("class")
+library("e1071")
+set.seed(1)
+mejor_k=tune.knn(x=credit.train,y=as.logical(credit.train$default.payment.next.month),
+                 k=1:10,tunecontrol=tune.control(sampling = "cross"), cross=10)
+mejor_k
+k <- mejor_k$best.parameters
+knn.pred <- knn(credit.train,credit.test,credit.train$default.payment.next.month,k=k[1,1])
+knn.pred <- as.numeric(knn.pred)-1
+t_knn<- table(predict = knn.pred, truth=credit.test$default.payment.next.month)
+t_knn
+error.knn<- 1 - sum(diag(t_knn))/sum(t_knn)
+error.knn
+```
+
+```{r}
+rocplot(knn.pred, credit.test$default.payment.next.month, col="red", main=c("KNN", "ROC CURVE"))
+```
+
+##Validacion cruzada KNN
+```{r}
+cv.error.knn <- function(k=5, mejor_k){
+    errores <- vector(length = k)
+    for(i in 1:k){
+        labels <- creditCardData$default.payment.next.month
+        train <- createDataPartition(labels, times = 1, p = 0.8, list = F)
+        
+        credit.train <- creditCardData[train,]
+        credit.test <- creditCardData[-train,]
+        
+        labels.train <- credit.train$default.payment.next.month
+        labels.test  <- credit.test$default.payment.next.month
+
+        prediction <- knn(credit.train,credit.test,
+                          credit.train$default.payment.next.month,k=mejor_k)
+        prediction <- as.numeric(prediction)-1
+        
+        t<- table(predict=prediction, truth=credit.test$default.payment.next.month)
+        
+        error <- 1 - sum(diag(t))/sum(t)
+        errores[i] <- error
+    }
+    
+    return(mean(errores))
+}
+```
+
+```{r}
+error_knn = cv.error.knn(k=5, mejor_k = 9)
+error_knn
+```
+
+
+
+
+
+
 
 
 
