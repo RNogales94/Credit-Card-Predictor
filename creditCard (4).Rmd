@@ -1,0 +1,322 @@
+---
+title: "creditCard"
+author: "Rafael Nogales & Daniel Muñoz"
+date: "17 de junio de 2016"
+output: pdf_document
+---
+
+#Definición del problema a resolver 
+ 
+Esta base de datos trata de coger los pagos de la tarjeta de créditos de los clientes de Taiwán y con estos datos predecir si van a realizar un incumplimiento del pago o no, esta base de datos se uso para investigación para comparar la precisión de la predicción frente a los datos reales de la base de datos. 
+ 
+Lo que vamos a predecir en este problema es la estimación de si los clientes son creíbles o no, es decir si creernos que podrán realizar luego el pago o no, es decir nos encontramos con un problema de clasificación binaria. 
+ 
+Como esta base de datos ha sido realizada para investigación la verdadera probabilidad de incumplimiento de pago era desconocida por lo que para este estudio se estima su verdadera probabilidad usando la novela Sorting Smoothing Method?. 
+ 
+Ahora vamos a explicar las variables que tendrá? nuestra base de datos para la predicción de nuestra variable binaria, Nuestro sistema esta formado por las siguientes variables: 
+ 
+. default payment next month: variable binaria que queremos predecir, la cual esta representada por 1 si tenemos creencia que el cliente realizará el pago o 0 si no tenemos creencia que podrá realizarlo. 
+ 
+. ID: identificador de nuestro cliente. 
+ 
+. Limit_Bal: crédito dado expresado en dólares. 
+ 
+. Sex: Genero de la persona, se expresa con dos valores 1 para masculino y 2 para femenino. 
+ 
+. Education: Muestra el nivel de estudios que tiene el usuario, esta variable tiene 4 valores, los cuales son 1: escuela de posgrado, 2: universitaria,3: escuela secundaria y 4: otros. 
+ 
+. Marriage: Es el estado civil del usuario, el cual tiene 3 valores 1:casado, 2:único y 3:otros. 
+. Age: Es la edad del usuario. 
+ 
+. Pay_i: Historial del pago pasado, vamos a tener un seguimientos de los últimos registros de pagos mensuales desde abril hasta septiembre siendo i=0, Septiembre hasta i=8 , Abril. Esta variable puede tener los siguientes valores, -1: pagar debidamente,1: retraso en el pago durante un mes, 2: retraso en el pago de dos meses y hasta el valor de 9 que ser el retraso de pago de 9 meses. 
+ 
+. Bill_ AMTi : Muestra la cantidad de dinero neto expresado en dólares y vendrá expresada como Pay_i, donde cada valor de estos representa cantidad en la cuenta del mes de agosto hasta el abril. 
+ 
+. PAY_AMTi: es la cantidad previo al pago neto expresado en dólares, esta variable es igual que las anteriores para cada i es una cantidad pagada de un mes distinto, y va desde agosto hasta abril
+
+
+
+#Predictor de pagos en tarjetas de crédito.
+
+En primer lugar vamos a pasar el archivo xls a csv para ello usamos directamente la herramienta de Excel para exportar el archivo a csv.  
+
+Despues ya podemos abrirlo con read.csv  
+
+Nota: Podriamos haber utilizado el paquete **gdata** para leer directamente desde Excel pero este metodo no es efectivo con datasets grandes porque la herramienta de lectura de gdata es *muy* lenta para archivos grandes.
+
+```{r}
+#Leer datos
+creditCardData <- read.csv("~/Dropbox/3/AA/proyecto/creditCardData.csv", header=TRUE, sep=";")
+```
+
+Las variables que hemos mencionado anteriormente, es decir las variables de nuestra base de datos, se puede ver que son interesantes para la predicción de la clase de nuestro problema, no vamos a realizar selección de subconjuntos debido a que no tiene un gran numero de variables y además podemos observar que las variables que tenemos son importantes para obtener los modelos, esto es porque por ejemplo la variable educación nos muestra el nivel que tiene nuestro usuario y se podría decir que cuanta mas educación mas posibilidad podrá tener de obtener un trabajo con un gran sueldo. 
+ 
+También podemos observar que tenemos la edad y el estado del usuario, podemos pensar que no es buenas variables pero estas variables nos puede proporcionar una gran información de los posibles gastos de nuestro usuario, como la edad puede mostrarnos que un adolescente puede ser una persona menos madura y luego no realizar los pagos, mientras un adulto tiene mayor probabilidad de realizar estos pagos y además puede ayudarse en el pago mediante un trabajo. 
+ 
+Luego el estado civil del usuario nos puede mostrar los gastos que puede tener tal persona y mostrarnos que si con que probabilidad podría realizar el pago, por ejemplo un hombre casado tiene mayor gastos pero puede ayudarse con el sueldo de su pareja y el suyo mientras que un soltero solo puede ayudarse con su propio sueldo por lo tanto puede que no pueda pagar. 
+ 
+Para finalizar los otros datos que tenemos son importantes porque nos muestra el estado de la cuenta, sus pagos y sus retrasos en estos pagos del usuario, por lo que nos ayudara bastante a obtener una información objetiva de si el usuario puede realizar el pago o no, mientras los datos anteriores puede ser un poco mas subjetivos pero ayudan bastante para saber el estado del usuario para poder abonar el dinero del crédito o no, como hemos mencionado anteriormente. 
+ 
+Es decir hemos observado que en nuestra base de datos con las variables que tiene, tenemos suficiente información para la predicción de la clase, por lo que no vamos seleccionar un subconjunto de variables para este problema. 
+ 
+#Separacion en test y training 
+ 
+Aquí vamos a realizar la separación de nuestra base de datos en dos partes una de test y training, esta separación la usaremos para calcular una estimación de la tasa de error fuera de la muestra, la cual será el conjunto de test, mientras el conjunto de training será el conjunto que usaremos para la obtención de los modelos usando los diferentes métodos como regresión lineal, regresión logística , knn...  
+  
+Para la realización de la separación del training con el test vamos a usar la función createDataParticion pasándole los parámetros los cuales son la variable que queremos predecir, es decir las clases 1 o 0 de nuestro problema de clasificación, luego le hemos pasado el numero de particiones que queremos realizar, el cual es una partición , porque esta partición va ir destinada al training y el resto para el test.  
+  
+Después le hemos pasado cuanto porcentaje de nuestra base de datos queremos en la partición que vamos a realizar para el training y ponemos list a False porque no queremos que nos devuelva en formato de lista.  
+  
+Esta función lo que va a realizar es un muestreo aleatorio para las muestras con las que empezara, luego con estas muestras aleatorias lo que va a realizar es un factor para conseguir una muestra que tengamos las equilibradas las distribuciones de las clases.  
+  
+Es decir va a realizar un muestreo que cumple la condición que las clases de nuestra base de datos estén equilibrada es decir si hay 200 0s y 100 1s pues que haya un equilibrio en la muestra con el mismo numero de 1s que 0s o al menos que no haya un gran diferencia de 1s que de 0s o a la inversa.  
+  
+Luego esta función nos va a devolver índices de nuestra base de datos, por lo que vamos a realizar es coger las filas de esos índices y meterlos en train y luego lo que falta de la base de datos lo hemos insertado en test.  
+ 
+
+```{r}
+#Creamos las particiones de TRAIN y TEST
+library("caret")
+set.seed(2)
+train <- createDataPartition(creditCardData$default.payment.next.month, 
+                                                times = 1, p = 0.8, list = F)
+credit.train <- creditCardData[train,]
+credit.test <- creditCardData[-train,]
+```
+
+
+
+
+
+
+
+
+```{r}
+library("ROCR")
+rocplot <- function(pred, truth, ...){
+    if(class(pred) == "factor"){
+        pred <- as.numeric(pred)
+        #Ahora tenemos un vector de 1's y 2's
+        #Lo pasamos a -1 y 1
+        pred <- 2*pred-3
+    }
+    predob <- prediction(pred, truth)
+    perf <- performance(predob, "tpr", "fpr")
+    
+    plot(perf, ...)
+}
+```
+
+
+
+
+##Regresion Logistica
+```{r}
+#Generamos un modelo a partir del train con todas las variables
+credit.model <- glm(default.payment.next.month ~ . , data = credit.train)
+```
+
+```{r}
+prediction <- predict(credit.model, credit.test)
+pred.class <- (prediction > 0.5)*1
+t.glm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t.glm
+error.glm <- 1 - sum(diag(t.glm))/sum(t.glm)
+error.glm
+```
+
+##Regresion Logistica rocplot
+```{r}
+log.predict <- pred.class             #Solo es renombrar
+rocplot(log.predict, credit.test$default.payment.next.month, col="red", main=c("REGRESION LOGISTICA", "ROC CURVE"))
+```
+
+##Validacion cruzada Regresion Logistica 
+```{r}
+cv.error.rl <- function(k=5){
+    errores <- vector(length = k)
+    for(i in 1:k){
+        labels <- creditCardData$default.payment.next.month
+        train <- createDataPartition(labels, times = 1, p = 0.8, list = F)
+        
+        credit.train <- creditCardData[train,]
+        credit.test <- creditCardData[-train,]
+        
+        labels.train <- credit.train$default.payment.next.month
+        labels.test  <- credit.test$default.payment.next.month
+        
+        credit.model <- glm(default.payment.next.month ~ . , data = credit.train)
+        summary(credit.model)
+        prediction <- predict(credit.model, credit.test)
+        
+        
+    
+        pred.class <- (prediction > 0.5)*1
+        t.glm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+        
+        error <- 1 - sum(diag(t.glm))/sum(t.glm)
+        errores[i] <- error
+    }
+    
+    return(mean(errores))
+}
+```
+
+```{r}
+error_glm=cv.error.rl(k=5)
+error_glm
+```
+
+
+
+
+##Regresion Lineal
+```{r}
+#Generamos un modelo a partir del train con todas las variables
+credit.model <- lm(default.payment.next.month ~ . , data = credit.train)
+```
+
+```{r}
+prediction <- predict(credit.model, credit.test)
+pred.class <- (prediction > 0.5)*1
+t.lm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t.lm
+error.lm <- 1 - sum(diag(t.lm))/sum(t.lm)
+error.lm
+```
+
+##Regresion Lineal rocplot
+```{r}
+log.predict <- pred.class             #Solo es renombrar
+rocplot(log.predict, credit.test$default.payment.next.month, col="red", main=c("REGRESION LINEAL", "ROC CURVE"))
+```
+
+##Validacion cruzada Regresion Lineal 
+```{r}
+cv.error.lm <- function(data, k=5){
+    errores <- vector(length = k)
+    for(i in 1:k){
+        labels <- creditCardData$default.payment.next.month
+        train <- createDataPartition(labels, times = 1, p = 0.8, list = F)
+        
+        credit.train <- creditCardData[train,]
+        credit.test <- creditCardData[-train,]
+        
+        labels.train <- credit.train$default.payment.next.month
+        labels.test  <- credit.test$default.payment.next.month
+        
+        credit.model <- lm(default.payment.next.month ~ . , data = credit.train)
+        summary(credit.model)
+        prediction <- predict(credit.model, credit.test)
+        
+
+        pred.class <- (prediction > 0.5)*1
+        t.glm<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+        
+        error <- 1 - sum(diag(t.glm))/sum(t.glm)
+        errores[i] <- error
+    }
+    
+    return(mean(errores))
+}
+```
+
+```{r}
+error_glm=cv.error.lm(k=5)
+error_glm
+```
+
+#SVM
+
+
+```{r}
+library("e1071")
+```
+tune_cost.credit.svm <- tune(svm, default.payment.next.month ~ ., 
+                             data=credit.train, kernel="linear", 
+                             ranges=list(cost=c(0.001, 0.1, 100)),
+                             scale = FALSE)
+tune_cost.credit.svm
+
+
+
+
+#regresion lineal con weight-decay
+
+```{r}
+library(glmnet)
+modelo_bridge_cv=cv.glmnet(as.matrix(credit.train),credit.train$default.payment.next.month,alpha=0)
+mejor_lambda=modelo_bridge_cv$lambda.min
+modelo=glmnet(as.matrix(credit.train),credit.train$default.payment.next.month,alpha=0)
+pesos=predict(modelo,type = "coefficients",s=mejor_lambda)
+pesos=pesos[1:nrow(pesos)]
+pesos
+prediction=predict(modelo,s=mejor_lambda,newx = as.matrix(credit.test))
+pred.class <- (prediction > 0.5)*1
+t_ridge<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t_ridge
+error.ridge<- 1 - sum(diag(t_ridge))/sum(t_ridge)
+error.ridge
+```
+
+#Random forest
+
+```{r}
+library("randomForest")
+library("gbm")
+library("ipred")
+modelo3=randomForest(credit.train$default.payment.next.month ~.,data = credit.train)
+predicion=predict(modelo3, newdata=credit.test)
+pred.class <- (prediction > 0.5)*1
+t_random.forest<- table(predict=pred.class, truth=credit.test$default.payment.next.month)
+t_random.forest
+error.random.forest<- 1 - sum(diag(t_random.forest))/sum(t_random.forest)
+error.random.forest
+```
+
+
+```{r}
+library("ipred")
+library("class")
+mejor_k=tune.knn(x=credit.train,y=as.logical(credit.train$default.payment.next.month),k=1:20,tunecontrol=tune.control(sampling = "cross"), cross=10)
+mejor_k
+k=mejor_k$best.parameters
+set.seed(1)
+knn_pred=knn(credit.train,credit.test,credit.train$default.payment.next.month,k=k[1,1])
+label_pred_knn=as.numeric(knn_pred)-1
+t_knn<- table(predict=label_pred_knn, truth=credit.test$default.payment.next.month)
+t_knn
+error.knn<- 1 - sum(diag(t_knn))/sum(t_knn)
+error.knn
+```
+
+
+##Redes Neuronales
+
+
+
+library(caret)
+parametros <- train(default.payment.next.month~., data=credit.train, method="nnet", trace=F)
+size <- parametros$bestTune$size
+decay <- parametros$bestTune$decay
+parametros$bestTune
+
+
+```{r}
+library(nnet)
+# Entrenamiento de la red neuronal con los valores de train
+modelo <- nnet(default.payment.next.month ~ . , size=29, decay=0.1,MaxNWts = 1000000, trace=F, data = credit.train)
+summary(modelo)
+predicciones=predict(modelo, credit.test)
+pred.class <- (predicciones > 0.5)*1
+
+# Matriz de confusión
+mc <- table(pred.class,credit.test$default.payment.next.month)
+mc
+
+error.neuronal<- 1 - sum(diag(mc))/sum(mc)
+error.neuronal
+
+
+```
+
